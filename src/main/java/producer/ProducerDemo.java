@@ -14,6 +14,7 @@ public class ProducerDemo {
 
   public static void main(String[] args) {
 
+//	 KafkaTemplate high level
     // create the producer
     KafkaProducer<String, String> producer =
         new KafkaProducer<String, String>(KafkaConfig.producerConfig());
@@ -21,13 +22,14 @@ public class ProducerDemo {
     // create a producer record
     ProducerRecord<String, String> record =
         new ProducerRecord<String, String>("first_topic", "test msg");
+    // thread safe, if need to use multi-thread, it can use only one instance to send message.
+    // one producer has a message buffer, monitoring with 'buffer-total-bytes', 'buffer-available-bytes'
 
-    // send data - asynchronous
-    producer.send(record);
+    producer.send(record); // send data - asynchronous
 
-    //sendWithKey(producer);
+    // sendWithKey(producer);
 
-    //sendWithCallback(producer, record);
+    // sendWithCallback(producer, record);
 
     // flush data
     producer.flush();
