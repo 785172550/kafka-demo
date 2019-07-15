@@ -24,6 +24,13 @@ public class KafkaConfig {
     properties.setProperty(
         ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
 
+// --------------- more config
+//    String bufferMemory =  ProducerConfig.BUFFER_MEMORY_CONFIG;
+//    String acks =  ProducerConfig.ACKS_CONFIG;
+//    String copression = ProducerConfig.COMPRESSION_TYPE_CONFIG;
+//    max.in.flight.requests.per.connection -- how many message on the way
+    
+    
 //    // Interceptor 拦截器
 //    properties.setProperty(
 //        ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, CustomProducerInterceptor.class.getName());
