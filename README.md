@@ -20,3 +20,7 @@ comsumer with assigned offset
 comsumer with multi-thread
 
 ```
+
+---
+
+kafka QA: [] [link](kafka_QA.md)
