@@ -4,7 +4,7 @@ kafka common use case and practice
 version kafka 2.0.2
 ```
 
-start script refer: [link](./src/main/resources/start_guide.md)
+start script refer: [link](src/main/resources/start_guide.md)
 
 * implement samples for:
 
