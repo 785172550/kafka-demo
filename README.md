@@ -23,4 +23,4 @@ comsumer with multi-thread
 
 ---
 
-kafka QA: [] [link](kafka_QA.md)
+kafka QA: [link](kafka_QA.md)
