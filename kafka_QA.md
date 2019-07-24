@@ -96,6 +96,14 @@ KafkaConsumer是非线程安全的，那么怎么样实现多线程消费？
 同一个消费者组 共享一个公共的ID，即group ID。组内的所有消费者协调在一起来消费订阅主题(subscribed topics)的所有分区(partition)
 每个分区只能由同一个消费组内的一个consumer来消费
 
+
+分区的分配规则：partition.assignment.strategy=range
+1.range: 默认的规则， 针对每个topic的partions, 直接 partitoins/ 消费者线程数，多的分给前面的线程
+
+2.round-robin: 要求组里面每个消费者线程数相等num.streams，然后将组内的所有主题的分区组成 TopicAndPartition 列表，按照hashcode 进行排序
+
+3.StickyAssignor
+
 ```
 当你使用kafka-topics.sh创建（删除）了一个topic之后，Kafka背后会执行什么逻辑？
 ```
@@ -125,7 +133,8 @@ __comsumer_offsets 消费者的偏移
 ```
 优先副本是什么？它有什么特殊的作用？
 ```
-优先副本会 默认是leader
+AR列表中的第一个副本
+优先副本会 默认是leader 如果是ISR
 
 ```
 
@@ -180,9 +189,33 @@ kafka留存策略包括 删除和压缩两种
 聊一聊你对Kafka底层存储的理解（页缓存、内核层、块层、设备层）
 
 聊一聊Kafka的延时操作的原理
+```
+定时消息: broker 到某个时刻投递到 consumer
+延迟消息; borker 延迟到一定时间投递到 consumer
+rabbitMQ：
+1. expireTime 通过dead letter exchange转发
+2. 延迟重试
+
+---
+
+kafka 没有延迟队列的实现， kafka的延迟操作是内部的一些操作，
+比如数据删除时延迟删除，
+follower取拉取 leader的更新时，延迟拉取。如果新消息不够 fetch.min.bytes 就会创建一个延迟拉取等待
+
+延迟生产操作：leader写入消息后，同步给follower时，创建(DelayedProduce)处理副本正常写入或者超时情况
+request.timeout.ms
+
+https://juejin.im/post/5ce6b1f2f265da1b827a75cb
+
+kafka 延迟操作使用： 多级时间轮 和 延迟加载 基于 DelayQueue： 原理是平衡了 精度和性能。
+netty 也有时间轮处理 延迟任务的实现 timewheel
+
+```
+https://xiaoyue26.github.io/2018/10/27/2018-10/HashedWheelTimer-%E5%A4%A7%E9%87%8F%E5%AE%9A%E6%97%B6%E5%99%A8%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88-Netty%E4%B8%8Ekafka/
 
 聊一聊Kafka控制器的作用
 ```
+controller
 
 ```
 
@@ -199,8 +232,42 @@ producer 重发机制
 Kafka中的事务是怎么实现的（这题我去面试6加被问4次，照着答案念也要念十几分钟，面试官简直凑不要脸。实在记不住的话...只要简历上不写精通Kafka一般不会问到，我简历上写的是“熟悉Kafka，了解RabbitMQ....”）
 
 Kafka中有那些地方需要选举？这些地方的选举策略又有哪些？
+```
+controller epoch:
+选出一个broker 当作 kafka controller，管理分区和副本状态
+比如： 选出partition 的 leader
+controller 依赖选举zk： 哪个broker能成功创建/controller临时节点(Ephemeral)就是controller
+其他broker都watch/controller， 一旦节点消失，每个broker都立即尝试创建(zk 非公平模式)
+(zk 公平模式利用 EPHEMERAL SEQUENTIAL自增ID将每个 所有broker的ID从小到大形成watch list,不用重新争抢创建)
+
+---------------------
+
+partition epoch:
+controller 来选举，全部用zk选，zk压力太大.
+创建分区 或者 分区下线都会 重选
+基本思路是按照AR集合中副本的顺序查找第一个存活的副本，并且这个副本在ISR集合中
+
+分区进行重分配（reassign）
+从重分配的AR列表中找到第一个存活的副本，且这个副本在目前的ISR列表中。
+
+发生优先副本时，优先副本直接leader
+
+----------------------
+
+consumer epoch
+组协调器GroupCoordinator需要为消费组内的消费者选举出一个消费组的leader
+1. 第一个加入组的 consumer
+2. 随机从消费者信息列表hashmap 中选第一个
+
+```
 
 失效副本是指什么？有那些应对措施？
+```
+踢出ISR的副本 -> UnderReplicatedPartitions
+
+确定集群中所有的under-replicated分区都是在单个Broker上, 针对这单一的Broker做专项调查，比如：操作系统、GC、网络状态或者磁盘状态
+
+```
 
 多副本下，各个副本中的HW和LEO的演变过程
 
@@ -208,13 +275,31 @@ Kafka中有那些地方需要选举？这些地方的选举策略又有哪些？
 ```
 读写分离可以做，但是读写分离 更适合 读多写少的环境
 MQ 使用场景很多，无法确定读写多少
+
+partition leader已经做了负载均衡
+
 ```
 Kafka在可靠性方面做了哪些改进？（HW, LeaderEpoch）
 
 Kafka中怎么实现死信队列和重试队列？
+```
+connector 可以配置将 异常信息发送到一个单独的 topic
+errors.tolerance = all
+errors.deadletterqueue.topic.name = dead-q
+errors.deadletterqueue.topic.replication.factor = 1
+
+errors.deadletterqueue.context.headers.enable = true //错误原因
+errors.log.enable = true //记录错误原因
+
+```
 
 Kafka中的延迟队列怎么实现（这题被问的比事务那题还要多！！！听说你会Kafka，那你说说延迟队列怎么实现？）
+```
+TimeWheel
+CommitLog
+https://www.cnblogs.com/hzmark/p/mq-delay-msg.html
 
+```
 Kafka中怎么做消息审计？
 
 Kafka中怎么做消息轨迹？
